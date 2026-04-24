@@ -12,260 +12,247 @@ from sklearn.preprocessing import PolynomialFeatures
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 
-# =========================
-# 🔥 CODE GENERATOR FUNCTION
-# =========================
-def generate_clean_code(model_choice, x_cols, y_col, params):
+=========================
 
-    if len(x_cols) == 1:
-        x_format = f"data['{x_cols[0]}'].values.reshape(-1, 1)"
-    else:
-        x_format = f"data[{x_cols}]"
+⚙️ PAGE CONFIGURATION
 
-    code = f"""
-import pandas as pd
+=========================
 
-# Step 1: Load the dataset
-data = pd.read_csv("your_file.csv")
-
-# Step 2: Extract features and target variable
-X = {x_format}
-y = data['{y_col}'].values
-"""
-
-    if model_choice in ["Linear Regression", "Multiple Linear Regression"]:
-        code += """
-from sklearn.linear_model import LinearRegression
-
-# Step 3: Train model
-model = LinearRegression()
-model.fit(X, y)
-"""
-
-    elif model_choice == "Polynomial Regression":
-        code += f"""
-from sklearn.preprocessing import PolynomialFeatures
-from sklearn.linear_model import LinearRegression
-
-poly = PolynomialFeatures(degree={params.get('degree', 3)})
-X = poly.fit_transform(X)
-
-model = LinearRegression()
-model.fit(X, y)
-"""
-
-    elif model_choice == "KNN":
-        code += f"""
-from sklearn.neighbors import KNeighborsClassifier
-
-model = KNeighborsClassifier(n_neighbors={params.get('k', 3)})
-model.fit(X, y)
-"""
-
-    elif model_choice == "Decision Tree":
-        code += f"""
-from sklearn.tree import DecisionTreeClassifier
-
-model = DecisionTreeClassifier(
-    max_depth={params.get('depth', 5)},
-    criterion='{params.get('criterion', 'entropy')}',
-    random_state={params.get('random_state', 42)}
-)
-model.fit(X, y)
-"""
-
-    elif model_choice == "SVM":
-        code += f"""
-from sklearn.svm import SVC
-
-model = SVC(
-    C={params.get('C', 1.0)},
-    kernel='{params.get('kernel', 'rbf')}'
-)
-model.fit(X, y)
-"""
-
-    elif model_choice == "Random Forest":
-        code += f"""
-from sklearn.ensemble import RandomForestClassifier
-
-model = RandomForestClassifier(
-    n_estimators={params.get('n_estimators', 100)},
-    criterion='{params.get('criterion', 'entropy')}',
-    random_state={params.get('random_state', 42)}
-)
-model.fit(X, y)
-"""
-
-    code += """
-
-# Step 4: Prediction function
-def predict(input_value):
-    return model.predict([input_value])
-
-# Example
-print("Prediction:", predict([5]))
-"""
-
-    return code
-
-
-# =========================
-# ⚙️ PAGE CONFIGURATION
-# =========================
 st.set_page_config(
-    page_title="Machine Learning Studio",
-    page_icon="🤖",
-    layout="wide",
-    initial_sidebar_state="expanded"
+page_title="Machine Learning Studio",
+page_icon="🤖",
+layout="wide",
+initial_sidebar_state="expanded"
 )
+
+st.markdown("""
+
+<style>  
+    .block-container { padding-top: 2rem; padding-bottom: 2rem; }  
+    h1, h2, h3 { font-weight: 600 !important; }  
+</style>  """, unsafe_allow_html=True)
 
 st.title("🤖 Machine Learning Studio")
+st.markdown("Upload your dataset, configure your features, and train models in a clean, interactive environment.")
 
-# =========================
-# SIDEBAR
-# =========================
+=========================
+
+SIDEBAR
+
+=========================
+
 with st.sidebar:
-    file = st.file_uploader("Upload CSV File", type=["csv"])
+st.header("1. Upload Data")
+file = st.file_uploader("Upload CSV File", type=["csv"])
 
-    if file:
-        df = pd.read_csv(file)
+if file:  
+    df = pd.read_csv(file)  
+      
+    st.divider()  
+    st.header("2. Configure Features")  
+    columns = df.columns.tolist()  
+    y_col = st.selectbox("🎯 Target Variable (Y)", columns)  
+    x_cols = st.multiselect("📊 Feature Variables (X)", [col for col in columns if col != y_col])  
+      
+    st.divider()  
+    st.header("3. Train/Test Split")  
+    test_size = st.slider("Test Size Ratio", 0.1, 0.5, 0.2, 0.05)  
+    random_state = st.number_input("Random State", value=42, step=1)
 
-        y_col = st.selectbox("🎯 Target Variable (Y)", df.columns)
-        x_cols = st.multiselect("📊 Feature Variables (X)", [col for col in df.columns if col != y_col])
+=========================
 
-        test_size = st.slider("Test Size", 0.1, 0.5, 0.2)
-        random_state = st.number_input("Random State", value=42)
+MAIN APP
 
-# =========================
-# MAIN APP
-# =========================
+=========================
+
 if file:
-    tab_data, tab_model, tab_viz = st.tabs(["Data", "Model", "Visualization"])
+tab_data, tab_model, tab_viz = st.tabs([
+"🗂️ Data Overview",
+"🧠 Model Training & Evaluation",
+"📈 Visualizations"
+])
 
-    # -------------------------
-    # DATA TAB
-    # -------------------------
-    with tab_data:
-        st.dataframe(df)
+# -------------------------  
+# DATA TAB  
+# -------------------------  
+with tab_data:  
+    st.subheader("Dataset Preview")  
+    st.dataframe(df, use_container_width=True)  
+      
+    col1, col2 = st.columns(2)  
+    col1.metric("Total Rows", df.shape[0])  
+    col2.metric("Total Columns", df.shape[1])  
+      
+    csv = df.to_csv(index=False).encode('utf-8')  
+    st.download_button("📥 Download Data", csv, "data.csv")  
 
-    # -------------------------
-    # MODEL TAB
-    # -------------------------
-    with tab_model:
-        if x_cols:
+# -------------------------  
+# MODEL TAB  
+# -------------------------  
+with tab_model:  
+    if x_cols and y_col:  
+        st.subheader("Model Selection & Hyperparameters")  
 
-            model_choice = st.selectbox("Model", [
-                "Linear Regression",
-                "Multiple Linear Regression",
-                "Polynomial Regression",
-                "KNN",
-                "Decision Tree",
-                "SVM",
-                "Random Forest"
-            ])
+        col_model, col_params = st.columns([1, 2])  
 
-            params = {}
+        with col_model:  
+            model_choice = st.selectbox(  
+                "Choose Algorithm",  
+                [  
+                    "Linear Regression",  
+                    "Multiple Linear Regression",  
+                    "Polynomial Regression",  
+                    "KNN",  
+                    "Decision Tree",  
+                    "SVM",  
+                    "Random Forest"  
+                ]  
+            )  
 
-            # PARAMETERS
-            if model_choice == "Polynomial Regression":
-                degree = st.slider("Degree", 2, 5, 3)
-                params["degree"] = degree
+        # =========================  
+        # VALIDATION RULES  
+        # =========================  
+        if model_choice == "Linear Regression" and len(x_cols) != 1:  
+            st.warning("⚠️ Linear Regression requires exactly ONE X column")  
 
-            elif model_choice == "KNN":
-                k = int(np.sqrt(len(df)))
-                params["k"] = k
-                st.info(f"Auto K = {k}")
+        if model_choice == "Multiple Linear Regression" and len(x_cols) < 2:  
+            st.warning("⚠️ Multiple Linear Regression requires MULTIPLE X columns")  
 
-            elif model_choice == "Decision Tree":
-                depth = 5
-                criterion = st.selectbox("Criterion", ["entropy", "gini"])
-                params.update({"depth": depth, "criterion": criterion, "random_state": 42})
+        if model_choice == "Polynomial Regression" and len(x_cols) < 1:  
+            st.warning("⚠️ Polynomial Regression requires at least ONE X column")  
 
-            elif model_choice == "SVM":
-                C = 1.0
-                kernel = "rbf"
-                params.update({"C": C, "kernel": kernel})
+        # =========================  
+        # HYPERPARAMETERS  
+        # =========================  
+        with col_params:  
+            if model_choice == "Polynomial Regression":  
+                auto_degree = min(3, len(x_cols)+1)  
+                degree = st.slider("Degree", 2, 5, auto_degree)  
 
-            elif model_choice == "Random Forest":
-                params.update({"n_estimators": 100, "criterion": "entropy", "random_state": 42})
+            elif model_choice == "KNN":  
+                auto_k = int(np.sqrt(len(df)))  
+                k = st.slider("K (Neighbors)", 1, 15, auto_k)  
 
-            # ERROR HANDLING
-            is_numeric = pd.api.types.is_numeric_dtype(df[y_col])
-            unique_values = df[y_col].nunique()
+            elif model_choice == "Decision Tree":  
+                depth = st.slider("Max Depth", 1, 20, min(5, len(df)//10))  
+                criterion = st.selectbox("Criterion", ["entropy", "gini"], index=0)  
+                random_state = st.number_input("Random State", value=42)  
 
-            if model_choice in ["KNN", "Decision Tree", "SVM", "Random Forest"]:
-                if is_numeric and unique_values > 15:
-                    st.error("❌ Classification model with continuous Y")
-                    st.stop()
+            elif model_choice == "SVM":  
+                C = st.slider("C Value", 0.1, 10.0, 1.0)  
+                kernel = st.selectbox("Kernel", ["rbf", "linear", "poly"], index=0)  
+                random_state = st.number_input("Random State", value=42)  
 
-            if model_choice in ["Linear Regression", "Multiple Linear Regression", "Polynomial Regression"]:
-                if not is_numeric:
-                    st.error("❌ Regression requires numeric Y")
-                    st.stop()
+            elif model_choice == "Random Forest":  
+                n_estimators = st.slider("Estimators", 10, 200, 100)  
+                criterion = st.selectbox("Criterion", ["entropy", "gini"], index=0)  
+                random_state = st.number_input("Random State", value=42)  
 
-            if st.button("🚀 Train Model"):
+        st.divider()  
 
-                X = pd.get_dummies(df[x_cols])
-                y = df[y_col]
+        # =========================  
+        # ERROR HANDLING  
+        # =========================  
+        if model_choice in ["Linear Regression", "Multiple Linear Regression", "Polynomial Regression"]:  
+            if not pd.api.types.is_numeric_dtype(df[y_col]):  
+                st.error("❌ Y must be numeric for Regression models")  
+                st.stop()  
 
-                X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size)
+        if any(df[col].dtype == "object" for col in x_cols):  
+            st.info("ℹ️ String detected in X → Applying One-Hot Encoding")  
 
-                # MODEL
-                if model_choice in ["Linear Regression", "Multiple Linear Regression"]:
-                    model = LinearRegression()
+        # =========================  
+        # ❗ MODEL-TYPE VALIDATION  
+        # =========================  
 
-                elif model_choice == "Polynomial Regression":
-                    poly = PolynomialFeatures(degree=degree)
-                    X_train = poly.fit_transform(X_train)
-                    X_test = poly.transform(X_test)
-                    model = LinearRegression()
+        # Detect if Y is numeric continuous  
+        is_numeric = pd.api.types.is_numeric_dtype(df[y_col])  
+        unique_values = df[y_col].nunique()  
 
-                elif model_choice == "KNN":
-                    model = KNeighborsClassifier(n_neighbors=k)
+        # If classification model but Y is continuous → ERROR  
+        if model_choice in ["KNN", "Decision Tree", "SVM", "Random Forest"]:  
+            if is_numeric and unique_values > 15:  
+                st.error("❌ You selected a Classification model but Y is Continuous.\n👉 Use Regression models instead.")  
+                st.stop()  
 
-                elif model_choice == "Decision Tree":
-                    model = DecisionTreeClassifier(**params)
+        # If regression model but Y is categorical → ERROR  
+        if model_choice in ["Linear Regression", "Multiple Linear Regression", "Polynomial Regression"]:  
+            if not is_numeric:  
+                st.error("❌ You selected a Regression model but Y is Categorical.\n👉 Use Classification models instead.")  
+                st.stop()  
 
-                elif model_choice == "SVM":
-                    model = SVC(**params)
+        # =========================  
+        # TRAIN  
+        # =========================  
+        if st.button("🚀 Train Model", use_container_width=True):  
 
-                elif model_choice == "Random Forest":
-                    model = RandomForestClassifier(**params)
+            X = pd.get_dummies(df[x_cols])  
+            y = df[y_col]  
 
-                model.fit(X_train, y_train)
-                pred = model.predict(X_test)
+            X_train, X_test, y_train, y_test = train_test_split(  
+                X, y, test_size=test_size, random_state=random_state  
+            )  
 
-                st.subheader("📊 Results")
+            # Model creation  
+            if model_choice in ["Linear Regression", "Multiple Linear Regression"]:  
+                model = LinearRegression()  
 
-                if model_choice in ["Linear Regression", "Multiple Linear Regression", "Polynomial Regression"]:
-                    st.write("R2:", r2_score(y_test, pred))
-                else:
-                    st.write("Accuracy:", accuracy_score(y_test, pred))
+            elif model_choice == "Polynomial Regression":  
+                poly = PolynomialFeatures(degree=degree)  
+                X_train = poly.fit_transform(X_train)  
+                X_test = poly.transform(X_test)  
+                model = LinearRegression()  
 
-                # =========================
-                # 💻 SHOW CODE BUTTON
-                # =========================
-                st.divider()
-                st.subheader("💻 Generated Python Code")
+            elif model_choice == "KNN":  
+                model = KNeighborsClassifier(n_neighbors=k)  
 
-                if st.button("📜 Show Code"):
-                    code = generate_clean_code(model_choice, x_cols, y_col, params)
+            elif model_choice == "Decision Tree":  
+                model = DecisionTreeClassifier(max_depth=depth, criterion=criterion, random_state=random_state)  
 
-                    st.code(code, language="python")
+            elif model_choice == "SVM":  
+                model = SVC(C=C, kernel=kernel)  
 
-                    st.download_button(
-                        "📥 Download Code",
-                        code,
-                        "ml_model_code.py",
-                        "text/plain"
-                    )
+            elif model_choice == "Random Forest":  
+                model = RandomForestClassifier(n_estimators=n_estimators, criterion=criterion, random_state=random_state)  
 
-    # -------------------------
-    # VISUALIZATION TAB
-    # -------------------------
-    with tab_viz:
-        st.plotly_chart(px.imshow(df.corr(numeric_only=True)))
+            model.fit(X_train, y_train)  
+            pred = model.predict(X_test)  
+
+            st.subheader("📊 Results")  
+
+            if model_choice in ["Linear Regression", "Multiple Linear Regression", "Polynomial Regression"]:  
+                st.metric("R² Score", f"{r2_score(y_test, pred):.4f}")  
+                st.metric("MSE", f"{mean_squared_error(y_test, pred):.4f}")  
+            else:  
+                st.metric("Accuracy", f"{accuracy_score(y_test, pred):.4f}")  
+                st.metric("Precision", f"{precision_score(y_test, pred, average='weighted', zero_division=0):.4f}")  
+                st.metric("Recall", f"{recall_score(y_test, pred, average='weighted', zero_division=0):.4f}")  
+                st.metric("F1 Score", f"{f1_score(y_test, pred, average='weighted', zero_division=0):.4f}")  
+
+                st.write("Confusion Matrix")  
+                st.dataframe(pd.DataFrame(confusion_matrix(y_test, pred)))  
+
+    else:  
+        st.info("👈 Select X and Y in sidebar")  
+
+# -------------------------  
+# VISUALIZATION TAB  
+# -------------------------  
+with tab_viz:  
+    st.subheader("Data Visualizations")  
+
+    with st.expander("🔥 Heatmap", True):  
+        fig = px.imshow(df.corr(numeric_only=True), text_auto=True)  
+        st.plotly_chart(fig, use_container_width=True)  
+
+    with st.expander("📍 Scatter"):  
+        if x_cols:  
+            fig = px.scatter(df, x=x_cols[0], y=y_col, color=y_col)  
+            st.plotly_chart(fig, use_container_width=True)  
+
+    with st.expander("📊 Histogram"):  
+        fig = px.histogram(df, x=y_col)  
+        st.plotly_chart(fig, use_container_width=True)
 
 else:
-    st.info("Upload CSV to start")
+st.info("Upload CSV to start")
