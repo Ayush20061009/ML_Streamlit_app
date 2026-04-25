@@ -22,6 +22,18 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+for key, val in {
+    "degree": 3,
+    "k": 5,
+    "depth": 5,
+    "C": 1.0,
+    "n_estimators": 100
+}.items():
+    if key not in st.session_state:
+        st.session_state[key] = val
+
+criterion = "entropy"
+kernel = "rbf"
 
 st.markdown("""
 <style>
@@ -58,6 +70,88 @@ with st.sidebar:
         st.header("3. Train/Test Split")
         test_size = st.slider("Test Size Ratio", 0.1, 0.5, 0.2, 0.05)
         random_state = st.number_input("Random State", value=42, step=1)
+def find_best_param(model_type, X_train, X_test, y_train, y_test):
+
+    best_param = None
+    best_score = -float("inf")
+
+    results = []
+
+    if model_type == "Polynomial":
+        for d in range(2, 6):
+            poly = PolynomialFeatures(degree=d)
+            X_train_p = poly.fit_transform(X_train)
+            X_test_p = poly.transform(X_test)
+
+            model = LinearRegression()
+            model.fit(X_train_p, y_train)
+            pred = model.predict(X_test_p)
+
+            score = -mean_squared_error(y_test, pred)  # minimize MSE
+
+            results.append((d, score))
+
+            if score > best_score:
+                best_score = score
+                best_param = d
+
+    elif model_type == "KNN":
+        for k in range(1, 16):
+            model = KNeighborsClassifier(n_neighbors=k)
+            model.fit(X_train, y_train)
+            pred = model.predict(X_test)
+
+            score = accuracy_score(y_test, pred)
+
+            results.append((k, score))
+
+            if score > best_score:
+                best_score = score
+                best_param = k
+
+    elif model_type == "Decision Tree":
+        for d in range(1, 21):
+            model = DecisionTreeClassifier(max_depth=d)
+            model.fit(X_train, y_train)
+            pred = model.predict(X_test)
+
+            score = accuracy_score(y_test, pred)
+
+            results.append((d, score))
+
+            if score > best_score:
+                best_score = score
+                best_param = d
+
+    elif model_type == "SVM":
+        for c in [0.1, 0.5, 1, 2, 5, 10]:
+            model = SVC(C=c)
+            model.fit(X_train, y_train)
+            pred = model.predict(X_test)
+
+            score = accuracy_score(y_test, pred)
+
+            results.append((c, score))
+
+            if score > best_score:
+                best_score = score
+                best_param = c
+
+    elif model_type == "Random Forest":
+        for n in range(1, 100, 1):
+            model = RandomForestClassifier(n_estimators=n)
+            model.fit(X_train, y_train)
+            pred = model.predict(X_test)
+
+            score = accuracy_score(y_test, pred)
+
+            results.append((n, score))
+
+            if score > best_score:
+                best_score = score
+                best_param = n
+
+    return best_param, results
 
 # =========================
 # MAIN APP
@@ -71,6 +165,8 @@ if file:
         "📈 Visualizations",
         "👨‍💻 Generate Code"
     ])
+
+    
 
     # -------------------------
     # DATA TAB
@@ -91,6 +187,13 @@ if file:
     # -------------------------
     with tab_model:
         if x_cols and y_col:
+            X = pd.get_dummies(df[x_cols])
+            y = df[y_col]
+
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=test_size, random_state=random_state
+            )
+
             st.subheader("Model Selection & Hyperparameters")
 
             col_model, col_params = st.columns([1, 2])
@@ -125,30 +228,77 @@ if file:
             # =========================
             # HYPERPARAMETERS
             # =========================
+            
             with col_params:
                 if model_choice == "Polynomial Regression":
-                    auto_degree = min(3, len(x_cols)+1)
-                    degree = st.slider("Degree", 2, 5, auto_degree)
 
+                    if st.button("🔍 Find Best Degree"):
+                        best_degree, results = find_best_param(
+                            "Polynomial", X_train, X_test, y_train, y_test
+                        )
+
+                        st.session_state.degree = best_degree   # 🔥 IMPORTANT
+
+                        for d, score in results:
+                            st.write(f"Degree {d} → Score: {score:.4f}")
+
+                        st.success(f"Best Degree: {best_degree}")
+
+                    degree = st.slider(
+                        "Degree",
+                        2,
+                        5,
+                        key="degree"   # 🔥 bind directly
+                    )
                 elif model_choice == "KNN":
-                    auto_k = max(1, int(np.sqrt(len(df))))
-                    k = st.slider("K (Neighbors)", 1, 15, auto_k)
+
+                    if st.button("🔍 Find Best K"):
+                        best_k, _ = find_best_param("KNN", X_train, X_test, y_train, y_test)
+                        st.session_state.k = best_k   # 🔥
+
+                    k = st.slider("K", 1, 15, key="k")
 
                 elif model_choice == "Decision Tree":
-                    depth = st.slider("Max Depth", 1, 20, min(5, len(df)//10))
-                    criterion = st.selectbox("Criterion", ["entropy", "gini"], index=0)
-                    random_state = st.number_input("Random State", value=42)
+
+                    criterion = st.selectbox(
+                        "Criterion",
+                        ["gini", "entropy"],
+                        key="dt_criterion"
+                    )
+
+                    if st.button("🔍 Find Best Depth"):
+                        best_depth, _ = find_best_param("Decision Tree", X_train, X_test, y_train, y_test)
+                        st.session_state.depth = best_depth
+
+                    depth = st.slider("Depth", 1, 20, key="depth")
 
                 elif model_choice == "SVM":
-                    C = st.slider("C Value", 0.1, 10.0, 1.0)
-                    kernel = st.selectbox("Kernel", ["rbf", "linear", "poly"], index=0)
-                    random_state = st.number_input("Random State", value=42)
+
+                    kernel = st.selectbox(
+                        "Kernel",
+                        ["rbf", "linear", "poly"],
+                        key="svm_kernel"
+                    )
+
+                    if st.button("🔍 Find Best C"):
+                        best_C, _ = find_best_param("SVM", X_train, X_test, y_train, y_test)
+                        st.session_state.C = best_C
+
+                    C = st.slider("C", 0.1, 10.0, key="C")
 
                 elif model_choice == "Random Forest":
-                    n_estimators = st.slider("Estimators", 10, 200, 100)
-                    criterion = st.selectbox("Criterion", ["entropy", "gini"], index=0)
-                    random_state = st.number_input("Random State", value=42)
 
+                    criterion = st.selectbox(
+                        "Criterion",
+                        ["gini", "entropy"],
+                        key="rf_criterion"
+                    )
+
+                    if st.button("🔍 Find Best Estimators"):
+                        best_n, _ = find_best_param("Random Forest", X_train, X_test, y_train, y_test)
+                        st.session_state.n_estimators = best_n
+
+                    n_estimators = st.slider("Estimators", 1, 100, key="n_estimators")
             st.divider()
 
             # =========================
