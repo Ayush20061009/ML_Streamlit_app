@@ -22,6 +22,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+
 st.markdown("""
 <style>
     .block-container { padding-top: 2rem; padding-bottom: 2rem; }
@@ -38,13 +39,18 @@ st.markdown("Upload your dataset, configure your features, and train models in a
 with st.sidebar:
     st.header("1. Upload Data")
     file = st.file_uploader("Upload CSV File", type=["csv"])
-    
+    if "model_choice" not in st.session_state:
+        st.session_state.model_choice = None
     if file:
         df = pd.read_csv(file)
         
         st.divider()
         st.header("2. Configure Features")
         columns = df.columns.tolist()
+        if "pred" not in st.session_state:
+            st.session_state.pred = None
+        if "y_test" not in st.session_state:
+            st.session_state.y_test = None
         y_col = st.selectbox("🎯 Target Variable (Y)", columns)
         x_cols = st.multiselect("📊 Feature Variables (X)", [col for col in columns if col != y_col])
         
@@ -56,6 +62,8 @@ with st.sidebar:
 # =========================
 # MAIN APP
 # =========================
+if "model_choice" not in st.session_state:
+    st.session_state.model_choice = None
 if file:
     tab_data, tab_model, tab_viz = st.tabs([
         "🗂️ Data Overview", 
@@ -87,7 +95,7 @@ if file:
             col_model, col_params = st.columns([1, 2])
 
             with col_model:
-                model_choice = st.selectbox(
+                st.session_state.model_choice = st.selectbox(
                     "Choose Algorithm",
                     [
                         "Linear Regression",
@@ -99,6 +107,7 @@ if file:
                         "Random Forest"
                     ]
                 )
+                model_choice = st.session_state.model_choice
 
             # =========================
             # VALIDATION RULES
@@ -121,7 +130,7 @@ if file:
                     degree = st.slider("Degree", 2, 5, auto_degree)
 
                 elif model_choice == "KNN":
-                    auto_k = int(np.sqrt(len(df)))
+                    auto_k = max(1, int(np.sqrt(len(df))))
                     k = st.slider("K (Neighbors)", 1, 15, auto_k)
 
                 elif model_choice == "Decision Tree":
@@ -144,7 +153,7 @@ if file:
             # =========================
             # ERROR HANDLING
             # =========================
-            if model_choice in ["Linear Regression", "Multiple Linear Regression", "Polynomial Regression"]:
+            if model_choice and model_choice in ["Linear Regression", "Multiple Linear Regression", "Polynomial Regression"]:
                 if not pd.api.types.is_numeric_dtype(df[y_col]):
                     st.error("❌ Y must be numeric for Regression models")
                     st.stop()
@@ -161,13 +170,13 @@ if file:
             unique_values = df[y_col].nunique()
 
             # If classification model but Y is continuous → ERROR
-            if model_choice in ["KNN", "Decision Tree", "SVM", "Random Forest"]:
+            if model_choice and model_choice in ["KNN", "Decision Tree", "SVM", "Random Forest"]:
                 if is_numeric and unique_values > 15:
                     st.error("❌ You selected a Classification model but Y is Continuous.\n👉 Use Regression models instead.")
                     st.stop()
 
             # If regression model but Y is categorical → ERROR
-            if model_choice in ["Linear Regression", "Multiple Linear Regression", "Polynomial Regression"]:
+            if model_choice and model_choice in ["Linear Regression", "Multiple Linear Regression", "Polynomial Regression"]:
                 if not is_numeric:
                     st.error("❌ You selected a Regression model but Y is Categorical.\n👉 Use Classification models instead.")
                     st.stop()
@@ -185,7 +194,7 @@ if file:
                 )
 
                 # Model creation
-                if model_choice in ["Linear Regression", "Multiple Linear Regression"]:
+                if model_choice and model_choice in ["Linear Regression", "Multiple Linear Regression"]:
                     model = LinearRegression()
 
                 elif model_choice == "Polynomial Regression":
@@ -207,11 +216,14 @@ if file:
                     model = RandomForestClassifier(n_estimators=n_estimators, criterion=criterion, random_state=random_state)
 
                 model.fit(X_train, y_train)
-                pred = model.predict(X_test)
+                st.session_state.pred = model.predict(X_test)
+                st.session_state.y_test = y_test
+                pred = st.session_state.pred
+                y_test = st.session_state.y_test
 
                 st.subheader("📊 Results")
 
-                if model_choice in ["Linear Regression", "Multiple Linear Regression", "Polynomial Regression"]:
+                if model_choice and model_choice in ["Linear Regression", "Multiple Linear Regression", "Polynomial Regression"]:
                     st.metric("R² Score", f"{r2_score(y_test, pred):.4f}")
                     st.metric("MSE", f"{mean_squared_error(y_test, pred):.4f}")
                 else:
@@ -221,30 +233,264 @@ if file:
                     st.metric("F1 Score", f"{f1_score(y_test, pred, average='weighted', zero_division=0):.4f}")
 
                     st.write("Confusion Matrix")
-                    st.dataframe(pd.DataFrame(confusion_matrix(y_test, pred)))
+                    cm = confusion_matrix(y_test, pred)
+                    st.dataframe(pd.DataFrame(cm, index=np.unique(y_test), columns=np.unique(y_test)))
 
         else:
             st.info("👈 Select X and Y in sidebar")
 
-    # -------------------------
-    # VISUALIZATION TAB
-    # -------------------------
+        # -------------------------
+        # VISUALIZATION TAB
+        # -------------------------
     with tab_viz:
-        st.subheader("Data Visualizations")
+        model_choice = st.session_state.get("model_choice", None)
+        pred = st.session_state.get("pred", None)
+        y_test = st.session_state.get("y_test", None)
+        st.subheader("📊 Data Visualizations")
 
-        with st.expander("🔥 Heatmap", True):
-            fig = px.imshow(df.corr(numeric_only=True), text_auto=True)
-            st.plotly_chart(fig, use_container_width=True)
+        # =========================
+        # 🔥 HEATMAP
+        # =========================
+        with st.expander("🔥 Correlation Heatmap", True):
+            numeric_df = df.select_dtypes(include=np.number)
 
-        with st.expander("📍 Scatter"):
-            if x_cols:
-                fig = px.scatter(df, x=x_cols[0], y=y_col, color=y_col)
+            if numeric_df.shape[1] >= 2:
+                if model_choice and pred is not None and y_test is not None:
+                    if model_choice not in ["Linear Regression", "Multiple Linear Regression", "Polynomial Regression"]:
+                        h = confusion_matrix(y_test, pred)
+                    else:
+                        h = numeric_df.corr()
+                else:
+                    h = numeric_df.corr()
+                fig = px.imshow(
+                    h,
+                    # confusion_matrix(y_test, pred),
+                    text_auto=True,
+                    color_continuous_scale="RdBu_r"
+                )
                 st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("Need at least 2 numeric columns for heatmap")
 
+        # =========================
+        # 📍 SCATTER PLOT (Dynamic)
+        # =========================
+        with st.expander("📍 Scatter Plot"):
+            if len(df.columns) >= 2:
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    scatter_x = st.selectbox("Select X-axis", df.columns, key="scatter_x")
+
+                with col2:
+                    scatter_y = st.selectbox("Select Y-axis", df.columns, index=1, key="scatter_y")
+
+                color_option = st.selectbox("Color By (Optional)", [None] + df.columns.tolist())
+
+                fig = px.scatter(
+                    df,
+                    x=scatter_x,
+                    y=scatter_y,
+                    color=color_option if color_option else None
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("Dataset needs at least 2 columns")
+
+        # =========================
+        # 📊 HISTOGRAM (Dynamic)
+        # =========================
         with st.expander("📊 Histogram"):
-            fig = px.histogram(df, x=y_col)
+            hist_col = st.selectbox("Select Column", df.columns, key="hist_col")
+
+            bins = st.slider("Number of Bins", 5, 100, 20)
+
+            fig = px.histogram(
+                df,
+                x=hist_col,
+                nbins=bins
+            )
             st.plotly_chart(fig, use_container_width=True)
 
+<<<<<<< HEAD
+        # =========================
+        # ➕ BONUS: BOX PLOT
+        # =========================
+        with st.expander("📦 Box Plot (Outliers Detection)"):
+            box_col = st.selectbox("Select Column for Box Plot", df.columns, key="box_col")
+
+            fig = px.box(df, y=box_col)
+            st.plotly_chart(fig, use_container_width=True)
+
+        # =========================
+        # 💻 GENERATE CODE BUTTON
+        # =========================
+        if st.button("💻 Generate Code", use_container_width=True):
+
+            file_name = file.name if file else "data.csv"
+
+            x_code = f"{x_cols}" if len(x_cols) > 1 else f'["{x_cols[0]}"]'
+            y_code = f'"{y_col}"'
+
+            base_code = f"""
+        import pandas as pd
+        from sklearn.model_selection import train_test_split
+        """
+
+            model_code = ""
+            metrics_code = ""
+
+            # =========================
+            # MODEL-SPECIFIC CODE
+            # =========================
+            if model_choice and model_choice in ["Linear Regression", "Multiple Linear Regression"]:
+                model_code = f"""
+        from sklearn.linear_model import LinearRegression
+        from sklearn.metrics import r2_score, mean_squared_error
+
+        df = pd.read_csv("{file_name}")
+        X = df[{x_code}]
+        y = df[{y_code}]
+
+        X = pd.get_dummies(X)
+
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size={test_size}, random_state={random_state})
+
+        model = LinearRegression()
+        model.fit(X_train, y_train)
+
+        pred = model.predict(X_test)
+
+        print("R2 Score:", r2_score(y_test, pred))
+        print("MSE:", mean_squared_error(y_test, pred))
+        """
+
+            elif model_choice == "Polynomial Regression":
+                model_code = f"""
+        from sklearn.linear_model import LinearRegression
+        from sklearn.preprocessing import PolynomialFeatures
+        from sklearn.metrics import r2_score, mean_squared_error
+
+        df = pd.read_csv("{file_name}")
+        X = df[{x_code}]
+        y = df[{y_code}]
+
+        X = pd.get_dummies(X)
+
+        poly = PolynomialFeatures(degree={degree})
+        X = poly.fit_transform(X)
+
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size={test_size}, random_state={random_state})
+
+        model = LinearRegression()
+        model.fit(X_train, y_train)
+
+        pred = model.predict(X_test)
+
+        print("R2 Score:", r2_score(y_test, pred))
+        print("MSE:", mean_squared_error(y_test, pred))
+        """
+
+            elif model_choice == "KNN":
+                model_code = f"""
+        from sklearn.neighbors import KNeighborsClassifier
+        from sklearn.metrics import accuracy_score
+
+        df = pd.read_csv("{file_name}")
+        X = df[{x_code}]
+        y = df[{y_code}]
+
+        X = pd.get_dummies(X)
+
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size={test_size}, random_state={random_state})
+
+        model = KNeighborsClassifier(n_neighbors={k})
+        model.fit(X_train, y_train)
+
+        pred = model.predict(X_test)
+
+        print("Accuracy:", accuracy_score(y_test, pred))
+        """
+
+            elif model_choice == "Decision Tree":
+                model_code = f"""
+        from sklearn.tree import DecisionTreeClassifier
+        from sklearn.metrics import accuracy_score
+
+        df = pd.read_csv("{file_name}")
+        X = df[{x_code}]
+        y = df[{y_code}]
+
+        X = pd.get_dummies(X)
+
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size={test_size}, random_state={random_state})
+
+        model = DecisionTreeClassifier(max_depth={depth}, criterion="{criterion}", random_state={random_state})
+        model.fit(X_train, y_train)
+
+        pred = model.predict(X_test)
+
+        print("Accuracy:", accuracy_score(y_test, pred))
+        """
+
+            elif model_choice == "SVM":
+                model_code = f"""
+        from sklearn.svm import SVC
+        from sklearn.metrics import accuracy_score
+
+        df = pd.read_csv("{file_name}")
+        X = df[{x_code}]
+        y = df[{y_code}]
+
+        X = pd.get_dummies(X)
+
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size={test_size}, random_state={random_state})
+
+        model = SVC(C={C}, kernel="{kernel}")
+        model.fit(X_train, y_train)
+
+        pred = model.predict(X_test)
+
+        print("Accuracy:", accuracy_score(y_test, pred))
+        """
+
+            elif model_choice == "Random Forest":
+                model_code = f"""
+        from sklearn.ensemble import RandomForestClassifier
+        from sklearn.metrics import accuracy_score
+
+        df = pd.read_csv("{file_name}")
+        X = df[{x_code}]
+        y = df[{y_code}]
+
+        X = pd.get_dummies(X)
+
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size={test_size}, random_state={random_state})
+
+        model = RandomForestClassifier(n_estimators={n_estimators}, criterion="{criterion}", random_state={random_state})
+        model.fit(X_train, y_train)
+
+        pred = model.predict(X_test)
+
+        print("Accuracy:", accuracy_score(y_test, pred))
+        """
+
+            final_code = base_code + model_code
+
+            st.subheader("📄 Generated Python Code")
+            st.code(final_code, language="python")
+
+            st.download_button(
+                label="📥 Download Code",
+                data=final_code,
+                file_name="generated_model.py",
+                mime="text/plain"
+            )
+        else:
+            st.info("Upload CSV to start")
+            
+=======
 else:
     st.info("Upload CSV to start")
     
+>>>>>>> 9c6cdef95d6c65cfad0939f298ad14217a1c2388
