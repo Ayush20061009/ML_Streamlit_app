@@ -312,7 +312,6 @@ if file:
             )
             st.plotly_chart(fig, use_container_width=True)
 
-<<<<<<< HEAD
         # =========================
         # ➕ BONUS: BOX PLOT
         # =========================
@@ -489,8 +488,3 @@ if file:
         else:
             st.info("Upload CSV to start")
             
-=======
-else:
-    st.info("Upload CSV to start")
-    
->>>>>>> 9c6cdef95d6c65cfad0939f298ad14217a1c2388
