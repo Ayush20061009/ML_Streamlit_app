@@ -65,10 +65,11 @@ with st.sidebar:
 if "model_choice" not in st.session_state:
     st.session_state.model_choice = None
 if file:
-    tab_data, tab_model, tab_viz = st.tabs([
+    tab_data, tab_model, tab_viz,tab_code = st.tabs([
         "🗂️ Data Overview", 
         "🧠 Model Training & Evaluation", 
-        "📈 Visualizations"
+        "📈 Visualizations",
+        "👨‍💻 Generate Code"
     ])
 
     # -------------------------
@@ -320,7 +321,7 @@ if file:
 
             fig = px.box(df, y=box_col)
             st.plotly_chart(fig, use_container_width=True)
-
+    with tab_code:
         # =========================
         # 💻 GENERATE CODE BUTTON
         # =========================
