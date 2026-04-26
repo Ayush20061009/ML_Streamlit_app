@@ -111,7 +111,7 @@ def find_best_param(model_type, X_train, X_test, y_train, y_test):
 
     elif model_type == "Decision Tree":
         for d in range(1, 21):
-            model = DecisionTreeClassifier(max_depth=d)
+            model = DecisionTreeClassifier(max_depth=d, random_state=random_state, criterion=criterion)
             model.fit(X_train, y_train)
             pred = model.predict(X_test)
 
@@ -124,8 +124,8 @@ def find_best_param(model_type, X_train, X_test, y_train, y_test):
                 best_param = d
 
     elif model_type == "SVM":
-        for c in [0.1, 0.5, 1, 2, 5, 10]:
-            model = SVC(C=c)
+        for c in (1,21):
+            model = SVC(C=c, kernel=kernel, random_state=random_state)
             model.fit(X_train, y_train)
             pred = model.predict(X_test)
 
@@ -139,7 +139,7 @@ def find_best_param(model_type, X_train, X_test, y_train, y_test):
 
     elif model_type == "Random Forest":
         for n in range(1, 100, 1):
-            model = RandomForestClassifier(n_estimators=n)
+            model = RandomForestClassifier(n_estimators=n,random_state=random_state,criterion=criterion)
             model.fit(X_train, y_train)
             pred = model.predict(X_test)
 
@@ -180,7 +180,7 @@ if file:
         col2.metric("Total Columns", df.shape[1])
         
         csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Download Data", csv, "data.csv")
+        st.download_button("📥 Download Data", csv, "data(By Ayush H.Kadiya).csv")
 
     # -------------------------
     # MODEL TAB
@@ -256,7 +256,7 @@ if file:
                         best_k, _ = find_best_param("KNN", X_train, X_test, y_train, y_test)
                         st.session_state.k = best_k   # 🔥
 
-                    k = st.slider("K", 1, 15, key="k")
+                    k = st.slider("K", 1, 100, key="k")
 
                 elif model_choice == "Decision Tree":
 
@@ -270,7 +270,7 @@ if file:
                         best_depth, _ = find_best_param("Decision Tree", X_train, X_test, y_train, y_test)
                         st.session_state.depth = best_depth
 
-                    depth = st.slider("Depth", 1, 20, key="depth")
+                    depth = st.slider("Depth", 1, 100, key="depth")
 
                 elif model_choice == "SVM":
 
@@ -284,7 +284,7 @@ if file:
                         best_C, _ = find_best_param("SVM", X_train, X_test, y_train, y_test)
                         st.session_state.C = best_C
 
-                    C = st.slider("C", 0.1, 10.0, key="C")
+                    C = st.slider("C", 1, 100, key="C")
 
                 elif model_choice == "Random Forest":
 
@@ -477,14 +477,14 @@ if file:
         # =========================
         if st.button("💻 Generate Code", use_container_width=True):
 
-            file_name = file.name if file else "data.csv"
+            file_name = file.name if file else "data(By Ayush H.Kadiya).csv"
 
             x_code = f"{x_cols}" if len(x_cols) > 1 else f'["{x_cols[0]}"]'
             y_code = f'"{y_col}"'
 
             base_code = f"""
-        import pandas as pd
-        from sklearn.model_selection import train_test_split
+import pandas as pd
+from sklearn.model_selection import train_test_split
         """
 
             model_code = ""
@@ -495,134 +495,134 @@ if file:
             # =========================
             if model_choice and model_choice in ["Linear Regression", "Multiple Linear Regression"]:
                 model_code = f"""
-        from sklearn.linear_model import LinearRegression
-        from sklearn.metrics import r2_score, mean_squared_error
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import r2_score, mean_squared_error
 
-        df = pd.read_csv("{file_name}")
-        X = df[{x_code}]
-        y = df[{y_code}]
+df = pd.read_csv("{file_name}")
+X = df[{x_code}]
+y = df[{y_code}]
 
-        X = pd.get_dummies(X)
+X = pd.get_dummies(X)
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size={test_size}, random_state={random_state})
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size={test_size}, random_state={random_state})
 
-        model = LinearRegression()
-        model.fit(X_train, y_train)
+model = LinearRegression()
+model.fit(X_train, y_train)
 
-        pred = model.predict(X_test)
+pred = model.predict(X_test)
 
-        print("R2 Score:", r2_score(y_test, pred))
-        print("MSE:", mean_squared_error(y_test, pred))
+print("R2 Score:", r2_score(y_test, pred))
+print("MSE:", mean_squared_error(y_test, pred))
         """
 
             elif model_choice == "Polynomial Regression":
                 model_code = f"""
-        from sklearn.linear_model import LinearRegression
-        from sklearn.preprocessing import PolynomialFeatures
-        from sklearn.metrics import r2_score, mean_squared_error
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.metrics import r2_score, mean_squared_error
 
-        df = pd.read_csv("{file_name}")
-        X = df[{x_code}]
-        y = df[{y_code}]
+df = pd.read_csv("{file_name}")
+X = df[{x_code}]
+y = df[{y_code}]
 
-        X = pd.get_dummies(X)
+X = pd.get_dummies(X)
 
-        poly = PolynomialFeatures(degree={degree})
-        X = poly.fit_transform(X)
+poly = PolynomialFeatures(degree={degree})
+X = poly.fit_transform(X)
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size={test_size}, random_state={random_state})
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size={test_size}, random_state={random_state})
 
-        model = LinearRegression()
-        model.fit(X_train, y_train)
+model = LinearRegression()
+model.fit(X_train, y_train)
 
-        pred = model.predict(X_test)
+pred = model.predict(X_test)
 
-        print("R2 Score:", r2_score(y_test, pred))
-        print("MSE:", mean_squared_error(y_test, pred))
+print("R2 Score:", r2_score(y_test, pred))
+print("MSE:", mean_squared_error(y_test, pred))
         """
 
             elif model_choice == "KNN":
                 model_code = f"""
-        from sklearn.neighbors import KNeighborsClassifier
-        from sklearn.metrics import accuracy_score
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score
 
-        df = pd.read_csv("{file_name}")
-        X = df[{x_code}]
-        y = df[{y_code}]
+df = pd.read_csv("{file_name}")
+X = df[{x_code}]
+y = df[{y_code}]
 
-        X = pd.get_dummies(X)
+X = pd.get_dummies(X)
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size={test_size}, random_state={random_state})
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size={test_size}, random_state={random_state})
 
-        model = KNeighborsClassifier(n_neighbors={k})
-        model.fit(X_train, y_train)
+model = KNeighborsClassifier(n_neighbors={k})
+model.fit(X_train, y_train)
 
-        pred = model.predict(X_test)
+pred = model.predict(X_test)
 
-        print("Accuracy:", accuracy_score(y_test, pred))
+print("Accuracy:", accuracy_score(y_test, pred))
         """
 
             elif model_choice == "Decision Tree":
                 model_code = f"""
-        from sklearn.tree import DecisionTreeClassifier
-        from sklearn.metrics import accuracy_score
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import accuracy_score
 
-        df = pd.read_csv("{file_name}")
-        X = df[{x_code}]
-        y = df[{y_code}]
+df = pd.read_csv("{file_name}")
+X = df[{x_code}]
+y = df[{y_code}]
 
-        X = pd.get_dummies(X)
+X = pd.get_dummies(X)
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size={test_size}, random_state={random_state})
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size={test_size}, random_state={random_state})
 
-        model = DecisionTreeClassifier(max_depth={depth}, criterion="{criterion}", random_state={random_state})
-        model.fit(X_train, y_train)
+model = DecisionTreeClassifier(max_depth={depth}, criterion="{criterion}", random_state={random_state})
+model.fit(X_train, y_train)
 
-        pred = model.predict(X_test)
+pred = model.predict(X_test)
 
-        print("Accuracy:", accuracy_score(y_test, pred))
+print("Accuracy:", accuracy_score(y_test, pred))
         """
 
             elif model_choice == "SVM":
                 model_code = f"""
-        from sklearn.svm import SVC
-        from sklearn.metrics import accuracy_score
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score
 
-        df = pd.read_csv("{file_name}")
-        X = df[{x_code}]
-        y = df[{y_code}]
+df = pd.read_csv("{file_name}")
+X = df[{x_code}]
+y = df[{y_code}]
 
-        X = pd.get_dummies(X)
+X = pd.get_dummies(X)
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size={test_size}, random_state={random_state})
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size={test_size}, random_state={random_state})
 
-        model = SVC(C={C}, kernel="{kernel}")
-        model.fit(X_train, y_train)
+model = SVC(C={C}, kernel="{kernel}")
+model.fit(X_train, y_train)
 
-        pred = model.predict(X_test)
+pred = model.predict(X_test)
 
-        print("Accuracy:", accuracy_score(y_test, pred))
+print("Accuracy:", accuracy_score(y_test, pred))
         """
 
             elif model_choice == "Random Forest":
                 model_code = f"""
-        from sklearn.ensemble import RandomForestClassifier
-        from sklearn.metrics import accuracy_score
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score
 
-        df = pd.read_csv("{file_name}")
-        X = df[{x_code}]
-        y = df[{y_code}]
+df = pd.read_csv("{file_name}")
+X = df[{x_code}]
+y = df[{y_code}]
 
-        X = pd.get_dummies(X)
+X = pd.get_dummies(X)
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size={test_size}, random_state={random_state})
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size={test_size}, random_state={random_state})
 
-        model = RandomForestClassifier(n_estimators={n_estimators}, criterion="{criterion}", random_state={random_state})
-        model.fit(X_train, y_train)
+model = RandomForestClassifier(n_estimators={n_estimators}, criterion="{criterion}", random_state={random_state})
+model.fit(X_train, y_train)
 
-        pred = model.predict(X_test)
+pred = model.predict(X_test)
 
-        print("Accuracy:", accuracy_score(y_test, pred))
+print("Accuracy:", accuracy_score(y_test, pred))
         """
 
             final_code = base_code + model_code
@@ -633,7 +633,7 @@ if file:
             st.download_button(
                 label="📥 Download Code",
                 data=final_code,
-                file_name="generated_model.py",
+                file_name="generated_model(by Ayush H.Kadiya).py",
                 mime="text/plain"
             )
         else:
