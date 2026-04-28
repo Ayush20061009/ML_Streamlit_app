@@ -147,7 +147,7 @@ def find_best_param(model_type, X_train, X_test, y_train, y_test):
             model.fit(X_train_p, y_train)
             pred = model.predict(X_test_p)
 
-            score = -mean_squared_error(y_test, pred)  # minimize MSE
+            score = r2_score(y_test, pred)  # maximize R2
 
             results.append((d, score))
 
