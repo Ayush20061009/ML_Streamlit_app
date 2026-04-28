@@ -138,7 +138,7 @@ def find_best_param(model_type, X_train, X_test, y_train, y_test):
     results = []
 
     if model_type == "Polynomial":
-        for d in range(1, 21):
+        for d in range(1, 6):
             poly = PolynomialFeatures(degree=d)
             X_train_p = poly.fit_transform(X_train)
             X_test_p = poly.transform(X_test)
@@ -385,8 +385,10 @@ if file:
     # -------------------------
     with tab_model:
         if x_cols and y_col:
-            X = pd.get_dummies(df[x_cols])
-            y = df[y_col]
+            clean_df = st.session_state.clean_df
+
+            X = pd.get_dummies(clean_df[x_cols])
+            y = clean_df[y_col]
 
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y, test_size=test_size, random_state=random_state
@@ -446,7 +448,7 @@ if file:
                     degree = st.slider(
                         "Degree",
                         1,
-                        21,
+                        6,
                         key="degree"   # 🔥 bind directly
                     )
                 elif model_choice == "KNN":
@@ -536,8 +538,11 @@ if file:
             # =========================
             if st.button("🚀 Train Model", use_container_width=True):
 
-                X = pd.get_dummies(df[x_cols])
-                y = df[y_col]
+                clean_df = st.session_state.clean_df
+
+                X = pd.get_dummies(clean_df[x_cols])
+                y = clean_df[y_col]
+                            
 
                 X_train, X_test, y_train, y_test = train_test_split(
                     X, y, test_size=test_size, random_state=random_state
