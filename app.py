@@ -50,26 +50,86 @@ st.markdown("Upload your dataset, configure your features, and train models in a
 # =========================
 with st.sidebar:
     st.header("1. Upload Data")
+
     file = st.file_uploader("Upload CSV File", type=["csv"])
+
     if "model_choice" not in st.session_state:
         st.session_state.model_choice = None
+    if "pred" not in st.session_state:
+        st.session_state.pred = None
+    if "y_test" not in st.session_state:
+        st.session_state.y_test = None
+
+    # =========================
+    # COLUMN CLEANING FUNCTION
+    # =========================
+    def clean_columns(df):
+        df = df.copy()
+
+        # Remove unnamed/artifact columns
+        df = df.loc[:, ~df.columns.str.match(r"^Unnamed")]
+
+        # Remove completely empty columns
+        df = df.dropna(axis=1, how="all")
+
+        # Remove constant columns
+        nunique = df.nunique()
+        constant_cols = nunique[nunique <= 1].index
+        df = df.drop(columns=constant_cols)
+
+        # Clean column names
+        df.columns = df.columns.str.strip()
+
+        return df
+
     if file:
-        df = pd.read_csv(file)
-        
+        raw_df = pd.read_csv(file)
+
+        # 🔥 CLEAN ON LOAD (important)
+        df = clean_columns(raw_df)
+
+        # Store original + cleaned separately (best practice)
+        st.session_state.raw_df = raw_df
+        st.session_state.df = df
+
+        st.success("✅ Data loaded & basic cleaning applied")
+
         st.divider()
+
+        # =========================
+        # FEATURE CONFIG
+        # =========================
         st.header("2. Configure Features")
+
         columns = df.columns.tolist()
-        if "pred" not in st.session_state:
-            st.session_state.pred = None
-        if "y_test" not in st.session_state:
-            st.session_state.y_test = None
-        y_col = st.selectbox("🎯 Target Variable (Y)", columns)
-        x_cols = st.multiselect("📊 Feature Variables (X)", [col for col in columns if col != y_col])
-        
+
+        y_col = st.selectbox("🎯 Target Variable (Y)", columns, key="y_col")
+
+        x_cols = st.multiselect(
+            "📊 Feature Variables (X)",
+            [col for col in columns if col != y_col],
+            key="x_cols"
+        )
+
         st.divider()
+
+        # =========================
+        # TRAIN TEST SPLIT
+        # =========================
         st.header("3. Train/Test Split")
-        test_size = st.slider("Test Size Ratio", 0.1, 0.5, 0.2, 0.05)
-        random_state = st.number_input("Random State", value=42, step=1)
+
+        test_size = st.slider(
+            "Test Size Ratio",
+            0.1, 0.5, 0.2, 0.05,
+            key="test_size"
+        )
+
+        random_state = st.number_input(
+            "Random State",
+            value=42,
+            step=1,
+            key="random_state"
+        )
 def find_best_param(model_type, X_train, X_test, y_train, y_test):
 
     best_param = None
@@ -78,7 +138,7 @@ def find_best_param(model_type, X_train, X_test, y_train, y_test):
     results = []
 
     if model_type == "Polynomial":
-        for d in range(2, 6):
+        for d in range(1, 21):
             poly = PolynomialFeatures(degree=d)
             X_train_p = poly.fit_transform(X_train)
             X_test_p = poly.transform(X_test)
@@ -124,7 +184,7 @@ def find_best_param(model_type, X_train, X_test, y_train, y_test):
                 best_param = d
 
     elif model_type == "SVM":
-        for c in (1,21):
+        for c in range(1, 100):
             model = SVC(C=c, kernel=kernel, random_state=random_state)
             model.fit(X_train, y_train)
             pred = model.predict(X_test)
@@ -172,16 +232,154 @@ if file:
     # DATA TAB
     # -------------------------
     with tab_data:
-        st.subheader("Dataset Preview")
-        st.dataframe(df, use_container_width=True)
-        
-        col1, col2 = st.columns(2)
-        col1.metric("Total Rows", df.shape[0])
-        col2.metric("Total Columns", df.shape[1])
-        
-        csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Download Data", csv, "data(By Ayush H.Kadiya).csv")
 
+        # =========================
+        # COLUMN CLEANING FUNCTION
+        # =========================
+        def clean_columns(df):
+            df = df.copy()
+
+            # Remove unnamed / artifact columns
+            df = df.loc[:, ~df.columns.str.match(r"^Unnamed")]
+
+            # Remove completely empty columns
+            df = df.dropna(axis=1, how="all")
+
+            # Remove constant columns
+            nunique = df.nunique()
+            constant_cols = nunique[nunique <= 1].index
+            df = df.drop(columns=constant_cols)
+
+            # Clean column names
+            df.columns = df.columns.str.strip()
+
+            return df
+
+        # =========================
+        # INIT CLEAN DATA
+        # =========================
+        if "clean_df" not in st.session_state:
+            cleaned = clean_columns(df)
+            st.session_state.clean_df = cleaned
+
+        clean_df = st.session_state.clean_df
+
+        # =========================
+        # DATA PREVIEW
+        # =========================
+        st.subheader("Dataset Preview (Cleaned Data)")
+
+        colR1, colR2 = st.columns([1, 5])
+        with colR1:
+            if st.button("🔄 Refresh", key="refresh_btn"):
+                st.rerun()
+
+        st.dataframe(clean_df, use_container_width=True)
+
+        col1, col2 = st.columns(2)
+        col1.metric("Total Rows", clean_df.shape[0])
+        col2.metric("Total Columns", clean_df.shape[1])
+
+        # =========================
+        # MISSING VALUES INFO
+        # =========================
+        st.subheader("🔍 Missing Values Overview")
+        st.dataframe(clean_df.isna().sum())
+
+        # =========================
+        # DATA CLEANING OPTIONS
+        # =========================
+        st.subheader("🧹 Data Cleaning Options")
+
+        colA, colB = st.columns(2)
+
+        # -------------------------
+        # REMOVE NaN ROWS
+        # -------------------------
+        with colA:
+            if st.button("🗑️ Remove NaN Rows", key="remove_nan"):
+                st.session_state.clean_df = clean_df.dropna()
+                st.success("Rows with NaN removed")
+                st.rerun()
+
+        # -------------------------
+        # RESET DATA
+        # -------------------------
+        with colB:
+            if st.button("🔄 Reset Data", key="reset_data"):
+                st.session_state.clean_df = clean_columns(df)
+                st.success("Data reset & cleaned")
+                st.rerun()
+
+        st.divider()
+
+        # =========================
+        # NUMERIC NaN HANDLING
+        # =========================
+        numeric_cols = clean_df.select_dtypes(include=np.number).columns
+
+        if len(numeric_cols) > 0:
+            st.subheader("📊 Handle Numeric NaN")
+
+            num_method = st.selectbox(
+                "Select Method",
+                ["Mean", "Median", "Zero"],
+                key="num_method"
+            )
+
+            if st.button("Apply Numeric Fill", key="num_fill"):
+                if num_method == "Mean":
+                    clean_df[numeric_cols] = clean_df[numeric_cols].fillna(clean_df[numeric_cols].mean())
+                elif num_method == "Median":
+                    clean_df[numeric_cols] = clean_df[numeric_cols].fillna(clean_df[numeric_cols].median())
+                else:
+                    clean_df[numeric_cols] = clean_df[numeric_cols].fillna(0)
+
+                st.session_state.clean_df = clean_df
+                st.success("Numeric NaN handled")
+                st.rerun()
+
+        # =========================
+        # CATEGORICAL NaN HANDLING
+        # =========================
+        cat_cols = clean_df.select_dtypes(include="object").columns
+
+        if len(cat_cols) > 0:
+            st.subheader("🧩 Handle Categorical NaN")
+
+            cat_method = st.selectbox(
+                "Select Method",
+                ["Mode", "Custom Value"],
+                key="cat_method"
+            )
+
+            custom_value = ""
+            if cat_method == "Custom Value":
+                custom_value = st.text_input("Enter Custom Value", key="custom_val")
+
+            if st.button("Apply Categorical Fill", key="cat_fill"):
+                for col in cat_cols:
+                    if cat_method == "Mode":
+                        clean_df[col] = clean_df[col].fillna(clean_df[col].mode()[0])
+                    else:
+                        clean_df[col] = clean_df[col].fillna(custom_value)
+
+                st.session_state.clean_df = clean_df
+                st.success("Categorical NaN handled")
+                st.rerun()
+
+        st.divider()
+
+        # =========================
+        # DOWNLOAD CLEAN DATA
+        # =========================
+        csv = clean_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            "📥 Download Cleaned Data",
+            csv,
+            "cleaned_data(By Ayush H.Kadiya).csv",
+            key="download_clean"
+        )
     # -------------------------
     # MODEL TAB
     # -------------------------
@@ -231,7 +429,8 @@ if file:
             
             with col_params:
                 if model_choice == "Polynomial Regression":
-
+                    # X.train=X_train.get_dummies(X_train)
+                    # X.test=X_test.get_dummies(X_test)
                     if st.button("🔍 Find Best Degree"):
                         best_degree, results = find_best_param(
                             "Polynomial", X_train, X_test, y_train, y_test
@@ -239,15 +438,15 @@ if file:
 
                         st.session_state.degree = best_degree   # 🔥 IMPORTANT
 
-                        for d, score in results:
-                            st.write(f"Degree {d} → Score: {score:.4f}")
+                        # for d, score in results:
+                        #     st.write(f"Degree {d} → Score: {score:.4f}")
 
                         st.success(f"Best Degree: {best_degree}")
 
                     degree = st.slider(
                         "Degree",
-                        2,
-                        5,
+                        1,
+                        21,
                         key="degree"   # 🔥 bind directly
                     )
                 elif model_choice == "KNN":
@@ -256,7 +455,7 @@ if file:
                         best_k, _ = find_best_param("KNN", X_train, X_test, y_train, y_test)
                         st.session_state.k = best_k   # 🔥
 
-                    k = st.slider("K", 1, 100, key="k")
+                    k = st.slider("K", 1, 16, key="k")
 
                 elif model_choice == "Decision Tree":
 
@@ -270,7 +469,7 @@ if file:
                         best_depth, _ = find_best_param("Decision Tree", X_train, X_test, y_train, y_test)
                         st.session_state.depth = best_depth
 
-                    depth = st.slider("Depth", 1, 100, key="depth")
+                    depth = st.slider("Depth", 1, 21, key="depth")
 
                 elif model_choice == "SVM":
 
@@ -485,6 +684,8 @@ if file:
             base_code = f"""
 import pandas as pd
 from sklearn.model_selection import train_test_split
+
+#Please clean  Data before using this code by your self and also make sure to install all the required libraries before running this code
         """
 
             model_code = ""
@@ -497,6 +698,7 @@ from sklearn.model_selection import train_test_split
                 model_code = f"""
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score, mean_squared_error
+
 
 df = pd.read_csv("{file_name}")
 X = df[{x_code}]
